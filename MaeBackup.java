@@ -480,59 +480,70 @@ public class MaeBackup {
 				byte[] buffer = new byte[chunksize];
 				
 				for (int x = 0; x < chunks; x++) {
-					System.out.println("Downloading chunk "+x+" of "+chunks);
-					String range = "bytes "+(x*chunksize)+"-"+((x+1)*chunksize-1)+"/*";
+					try {
+						System.out.println("Downloading chunk "+x+" of "+chunks);
+						String range = "bytes "+(x*chunksize)+"-"+((x+1)*chunksize-1)+"/*";
 					
-					GetJobOutputResult gjores = client.getJobOutput(
-						new GetJobOutputRequest(vaultname, jobid, range));
+						GetJobOutputResult gjores = client.getJobOutput(
+							new GetJobOutputRequest(vaultname, jobid, range));
 						
-					gjores.getBody().read(buffer);
+						gjores.getBody().read(buffer);
 					
-					MessageDigest md = MessageDigest.getInstance("SHA-256");
-					md.update(buffer, 0, chunksize);
+						MessageDigest md = MessageDigest.getInstance("SHA-256");
+						md.update(buffer, 0, chunksize);
 	
-					byte[] hash = md.digest();
+						byte[] hash = md.digest();
 		
-					StringBuffer sb = new StringBuffer();
-					for (byte b : hash) {
-						sb.append(String.format("%02x", b));
-					}
-					if (!sb.toString().equalsIgnoreCase(gjores.getChecksum())) {
-						System.err.println("Error: Chunk "+x+" does not match SHA-256.");
-						// TODO: Retry instead of bailing out.
-						System.exit(3);
-					}
+						StringBuffer sb = new StringBuffer();
+						for (byte b : hash) {
+							sb.append(String.format("%02x", b));
+						}
+						if (!sb.toString().equalsIgnoreCase(gjores.getChecksum())) {
+							System.err.println("Error: Chunk "+x+" does not match SHA-256. Retrying.");
+							x--;
+							continue;
+						}
 					
-					raf.seek(x * chunksize);
-					raf.write(buffer);
+						raf.seek(x * chunksize);
+						raf.write(buffer);
+					} catch (Exception e) {
+						System.err.println("Error: Exception while downloading chunk "+x+". Retrying.");
+						x--;
+					}
 				}
 				
 				if (size > chunks*chunksize) {
-					System.out.println("Downloading final partial chunk");
-					String range = "bytes "+(chunks*chunksize)+"-"+(size-1)+"/*";
+					do {
+						try {
+							System.out.println("Downloading final partial chunk");
+							String range = "bytes "+(chunks*chunksize)+"-"+(size-1)+"/*";
 
-					GetJobOutputResult gjores = client.getJobOutput(
-						new GetJobOutputRequest(vaultname, jobid, range));
+							GetJobOutputResult gjores = client.getJobOutput(
+								new GetJobOutputRequest(vaultname, jobid, range));
 						
-					int bytes = gjores.getBody().read(buffer);
+							int bytes = gjores.getBody().read(buffer);
 					
-					MessageDigest md = MessageDigest.getInstance("SHA-256");
-					md.update(buffer, 0, bytes);
+							MessageDigest md = MessageDigest.getInstance("SHA-256");
+							md.update(buffer, 0, bytes);
 	
-					byte[] hash = md.digest();
+							byte[] hash = md.digest();
 		
-					StringBuffer sb = new StringBuffer();
-					for (byte b : hash) {
-						sb.append(String.format("%02x", b));
-					}
-					if (!sb.toString().equalsIgnoreCase(gjores.getChecksum())) {
-						System.err.println("Error: Final chunk does not match SHA-256.");
-						// TODO: Retry instead of bailing out.
-						System.exit(3);
-					}
+							StringBuffer sb = new StringBuffer();
+							for (byte b : hash) {
+								sb.append(String.format("%02x", b));
+							}
+							if (!sb.toString().equalsIgnoreCase(gjores.getChecksum())) {
+								System.err.println("Error: Final chunk does not match SHA-256. Retrying.");
+								continue;
+							}
 					
-					raf.seek(chunks * chunksize);
-					raf.write(buffer, 0, bytes);
+							raf.seek(chunks * chunksize);
+							raf.write(buffer, 0, bytes);
+						} catch (Exception e) {
+							System.err.println("Error: Exception while downloading final chunk. Retrying.");
+							continue;
+						}
+					} while (false);
 				}
 				raf.close();
 				
