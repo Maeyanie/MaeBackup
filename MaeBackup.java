@@ -45,10 +45,15 @@ public class MaeBackup {
 		cachedir = new File(cachename);
 		if (!cachedir.exists()) cachedir.mkdir();
 
-		Properties props = new Properties();
-		props.load(new FileReader(new File(cachedir, "maebackup.properties")));
-		vaultname = props.get("vaultname");
-		credentials = new BasicAWSCredentials(props.get("awspublic"), props.get("awssecret"));
+		try {
+			Properties props = new Properties();
+			props.load(new FileReader(new File(cachedir, "maebackup.properties")));
+			vaultname = props.getProperty("vaultname");
+			credentials = new BasicAWSCredentials(props.getProperty("awspublic"), props.getProperty("awssecret"));
+		} catch (Exception e) {
+			System.err.println(cachename+"/maebackup.properties not found or could not be read.");
+			System.exit(1);
+		}
 		
 		switch (args[0]) {
 		case "f":
@@ -331,9 +336,6 @@ public class MaeBackup {
 			ClientConfiguration config = new ClientConfiguration();
 			config.setProtocol(Protocol.HTTPS);
 			AmazonGlacierClient client = new AmazonGlacierClient(credentials, config);
-			
-			/*ArchiveTransferManager atm = new ArchiveTransferManager(client, credentials);
-			UploadResult result = atm.upload(MaeBackup.vaultname, lrzname, new File(lrzname));*/
 			
 			File file = new File(lrzname);
 			String archiveid = "";
