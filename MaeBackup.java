@@ -37,7 +37,7 @@ public class MaeBackup {
 	public static String[] compresscmd = { "lrzip", "-U", "-L9", "-z", "-v", "%tar%" };
 	public static String vaultname;
 	public static AWSCredentials credentials;
-	public static int chunksize = 1*1024*1024; // Must be a power of 2 and >= 1 MB.
+	public static int chunksize;
 	public static File cachedir;
 	
 	public static void usage() {
@@ -64,6 +64,7 @@ public class MaeBackup {
 			props.load(new FileReader(new File(cachedir, "maebackup.properties")));
 			vaultname = props.getProperty("vaultname");
 			credentials = new BasicAWSCredentials(props.getProperty("awspublic"), props.getProperty("awssecret"));
+			chunksize = Integer.parseInt(props.getProperty("chunksize", 1048576));
 		} catch (Exception e) {
 			System.err.println(cachename+"/maebackup.properties not found or could not be read.");
 			System.exit(1);
@@ -362,6 +363,10 @@ public class MaeBackup {
 				archiveid = result.getArchiveId();
 			} else {
 				long chunks = file.length() / chunksize;
+				while (chunks > 10000) {
+					chunksize <<= 1;
+					chunks = file.length() / chunksize;
+				}
 				String chunksizestr = new Integer(chunksize).toString();
 				System.out.println("Starting multipart upload: "+chunks+" full chunks of "+chunksizestr+" bytes");
 
@@ -453,6 +458,10 @@ public class MaeBackup {
 				}
 				long size = djres.getArchiveSizeInBytes();
 				long chunks = size / chunksize;
+				while (chunks > 10000) {
+					chunksize <<= 1;
+					chunks = size / chunksize;
+				}
 				RandomAccessFile raf = new RandomAccessFile(filename, "w");
 				raf.setLength(size);
 				byte[] buffer = new byte[chunksize];
