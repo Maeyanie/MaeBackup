@@ -64,7 +64,7 @@ public class MaeBackup {
 			props.load(new FileReader(new File(cachedir, "maebackup.properties")));
 			vaultname = props.getProperty("vaultname");
 			credentials = new BasicAWSCredentials(props.getProperty("awspublic"), props.getProperty("awssecret"));
-			chunksize = Integer.parseInt(props.getProperty("chunksize", 1048576));
+			chunksize = Integer.parseInt(props.getProperty("chunksize", "1048576"));
 		} catch (Exception e) {
 			System.err.println(cachename+"/maebackup.properties not found or could not be read.");
 			System.exit(1);
@@ -379,28 +379,42 @@ public class MaeBackup {
 				byte[] buffer = new byte[chunksize];
 				
 				for (long x = 0; x < chunks; x++) {
-					System.out.println("Uploading chunk "+x+"/"+chunks);
+					try {
+						System.out.println("Uploading chunk "+x+"/"+chunks);
 					
-					raf.seek(x*chunksize);
-					raf.read(buffer);
+						raf.seek(x*chunksize);
+						raf.read(buffer);
 
-					String parthash = TreeHashGenerator.calculateTreeHash(new ByteArrayInputStream(buffer));
-					String range = "bytes "+(x*chunksize)+"-"+((x+1)*chunksize-1)+"/*";
+						String parthash = TreeHashGenerator.calculateTreeHash(new ByteArrayInputStream(buffer));
+						String range = "bytes "+(x*chunksize)+"-"+((x+1)*chunksize-1)+"/*";
 					
-					client.uploadMultipartPart(new UploadMultipartPartRequest(vaultname, uploadid, parthash, range,
-						new ByteArrayInputStream(buffer)));
+						client.uploadMultipartPart(new UploadMultipartPartRequest(vaultname, uploadid, parthash, range,
+							new ByteArrayInputStream(buffer)));
+					} catch (Exception e) {
+						e.printStackTrace();
+						System.err.println("Error uploading chunk "+x+", retrying...");
+						x--;
+					}
 				}
 				
 				if (file.length() > chunks * chunksize) {
-					System.out.println("Uploading final partial chunk");
-					raf.seek(chunks * chunksize);
-					int bytes = raf.read(buffer);
+					do {
+						try {
+							System.out.println("Uploading final partial chunk");
+							raf.seek(chunks * chunksize);
+							int bytes = raf.read(buffer);
 					
-					String parthash = TreeHashGenerator.calculateTreeHash(new ByteArrayInputStream(buffer, 0, bytes));
-					String range = "bytes "+(chunks*chunksize)+"-"+(file.length()-1)+"/*";
+							String parthash = TreeHashGenerator.calculateTreeHash(new ByteArrayInputStream(buffer, 0, bytes));
+							String range = "bytes "+(chunks*chunksize)+"-"+(file.length()-1)+"/*";
 					
-					client.uploadMultipartPart(new UploadMultipartPartRequest(vaultname, uploadid, parthash, range,
-						new ByteArrayInputStream(buffer, 0, bytes)));				
+							client.uploadMultipartPart(new UploadMultipartPartRequest(vaultname, uploadid, parthash, range,
+								new ByteArrayInputStream(buffer, 0, bytes)));
+						} catch (Exception e) {
+							e.printStackTrace();
+							System.err.println("Error uploading final chunk, retrying...");
+							continue;
+						}
+					} while (false);
 				}
 
 				System.out.println("Completing upload");				
@@ -417,7 +431,6 @@ public class MaeBackup {
 			fw.write(archiveid+" "+lrzname+"\n");
 			fw.close();
 		} catch (Exception e) { throw new RuntimeException(e); }
-		// TODO: Retry failed upload chunks
 	}
 	
 	public static void download(String filename, String jobid) {
