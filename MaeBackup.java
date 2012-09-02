@@ -62,9 +62,9 @@ public class MaeBackup {
 		try {
 			Properties props = new Properties();
 			props.load(new FileReader(new File(cachedir, "maebackup.properties")));
-			vaultname = props.getProperty("vaultname");
-			credentials = new BasicAWSCredentials(props.getProperty("awspublic"), props.getProperty("awssecret"));
-			chunksize = Integer.parseInt(props.getProperty("chunksize", "1048576"));
+			vaultname = props.getProperty("vaultname").trim();
+			credentials = new BasicAWSCredentials(props.getProperty("awspublic").trim(), props.getProperty("awssecret").trim());
+			chunksize = Integer.parseInt(props.getProperty("chunksize", "1048576").trim());
 		} catch (Exception e) {
 			System.err.println(cachename+"/maebackup.properties not found or could not be read.");
 			System.exit(1);
