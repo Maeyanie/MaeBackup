@@ -37,6 +37,7 @@ public class MaeBackup {
 	public static String[] compresscmd = { "lrzip", "-U", "-L9", "-z", "-v", "%tar%" };
 	public static String vaultname;
 	public static AWSCredentials credentials;
+	public static String endpoint;
 	public static int chunksize;
 	public static File cachedir;
 	
@@ -65,6 +66,7 @@ public class MaeBackup {
 			vaultname = props.getProperty("vaultname").trim();
 			credentials = new BasicAWSCredentials(props.getProperty("awspublic").trim(), props.getProperty("awssecret").trim());
 			chunksize = Integer.parseInt(props.getProperty("chunksize", "1048576").trim());
+			endpoint = props.getProperty("endpoint", "https://glacier.us-east-1.amazonaws.com/").trim();
 		} catch (Exception e) {
 			System.err.println(cachename+"/maebackup.properties not found or could not be read.");
 			System.exit(1);
@@ -346,11 +348,12 @@ public class MaeBackup {
 	}
 	
 	public static void upload(String lrzname) {
-		try {	
+		try {
 			System.out.println("Uploading to Glacier...");
 			ClientConfiguration config = new ClientConfiguration();
 			config.setProtocol(Protocol.HTTPS);
 			AmazonGlacierClient client = new AmazonGlacierClient(credentials, config);
+			client.setEndpoint(endpoint);
 			
 			File file = new File(lrzname);
 			String archiveid = "";
@@ -445,6 +448,7 @@ public class MaeBackup {
 			ClientConfiguration config = new ClientConfiguration();
 			config.setProtocol(Protocol.HTTPS);
 			AmazonGlacierClient client = new AmazonGlacierClient(credentials, config);
+			client.setEndpoint(endpoint);
 			
 			if (jobid == null || jobid == "") {
 				String archiveid;
@@ -570,6 +574,7 @@ public class MaeBackup {
 			ClientConfiguration config = new ClientConfiguration();
 			config.setProtocol(Protocol.HTTPS);
 			AmazonGlacierClient client = new AmazonGlacierClient(credentials, config);
+			client.setEndpoint(endpoint);
 			client.deleteArchive(new DeleteArchiveRequest(vaultname, archive));
 			System.out.println("Archive deleted.");
 		} catch (Exception e) { throw new RuntimeException(e); }
@@ -581,6 +586,7 @@ public class MaeBackup {
 			ClientConfiguration config = new ClientConfiguration();
 			config.setProtocol(Protocol.HTTPS);
 			AmazonGlacierClient client = new AmazonGlacierClient(credentials, config);
+			client.setEndpoint(endpoint);
 			
 			if (arg == null || arg == "") {
 				InitiateJobResult result = client.initiateJob(
