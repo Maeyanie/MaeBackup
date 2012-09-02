@@ -357,8 +357,14 @@ public class MaeBackup {
 			if (file.length() < 5*1024*1024) {
 				System.out.println("File is small, uploading as single chunk");
 				String treehash = TreeHashGenerator.calculateTreeHash(file);
+				
 				InputStream is = new FileInputStream(file);
-				UploadArchiveRequest request = new UploadArchiveRequest(vaultname, lrzname, treehash, is);
+				byte[] buffer = new byte[file.length()];
+				int bytes = is.read(buffer);
+				if (bytes != file.length()) throw new RuntimeException("Only read "+bytes+" of "+file.length()+" byte file when preparing for upload.");
+				InputStream bais = new ByteArrayInputStream(buffer);
+				
+				UploadArchiveRequest request = new UploadArchiveRequest(vaultname, lrzname, treehash, bais);
 				UploadArchiveResult result = client.uploadArchive(request);
 				archiveid = result.getArchiveId();
 			} else {
