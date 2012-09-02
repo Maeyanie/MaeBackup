@@ -35,6 +35,8 @@ import com.amazonaws.services.glacier.transfer.*;
 public class MaeBackup {
 	//public static final String compresscmd = "lrzip -U -L9 -z -v ";
 	public static String[] compresscmd = { "lrzip", "-U", "-L9", "-z", "-v", "%tar%" };
+	public static String[] tarcmd = { "tar", "-cf", "%tar%", "--files-from", "%listfile%" };
+	public static boolean useExternalTar = true;
 	public static String vaultname;
 	public static AWSCredentials credentials;
 	public static String endpoint;
@@ -82,7 +84,13 @@ public class MaeBackup {
 			LinkedList<File> files = findFiles(args[2]);
 			
 			File tar = new File(tarname+".f.tar");
-			LinkedHashMap<File,String> hashes = archiveAndHash(files, tar);
+			LinkedHashMap<File,String> hashes;
+			if (useExternalTar) {
+				hashes = hashFiles(files);
+				archiveExternal(files, tar);
+			} else {
+				hashes = archiveAndHash(files, tar);
+			}
 			
 			String lrz = compress(tar);
 			upload(lrz);
@@ -105,7 +113,11 @@ public class MaeBackup {
 			LinkedList<File> newFiles = hashDiff(fullHashes, hashes);
 			
 			File tar = new File(tarname+".p.tar");
-			archiveFiles(newFiles, tar);
+			if (useExternalTar) {
+				archiveExternal(newFiles, tar);
+			} else {
+				archiveFiles(newFiles, tar);
+			}
 			String lrz = compress(tar);
 			upload(lrz);
 			
@@ -127,7 +139,11 @@ public class MaeBackup {
 			LinkedList<File> newFiles = hashDiff(fullHashes, hashes);
 			
 			File tar = new File(tarname+".i.tar");
-			archiveFiles(newFiles, tar);
+			if (useExternalTar) {
+				archiveExternal(newFiles, tar);
+			} else {
+				archiveFiles(newFiles, tar);
+			}
 			String lrz = compress(tar);
 			upload(lrz);
 		} break;
@@ -266,6 +282,32 @@ public class MaeBackup {
 		return diff;
 	}
 	
+	public static void archiveExternal(Collection<File> files, File archive) {
+		try {
+			System.out.println("Creating tar file "+archive);
+			
+			BufferedWriter bw = new BufferedWriter(new FileWriter("files.lst"));
+			for (File file : files) {
+				bw.write(file.toString());
+				bw.newLine();
+			}
+			bw.close();
+			
+			tarcmd[2] = archive.toString();
+			tarcmd[4] = "files.lst";
+			Process tar = new ProcessBuilder(tarcmd).redirectErrorStream(true).start();
+			
+			InputStream is = tar.getInputStream();
+			int len;
+			byte[] data = new byte[1024];
+			while ((len = is.read(data)) != -1) {
+				System.out.write(data, 0, len);
+				System.out.flush();
+			}
+			tar.waitFor();
+
+		} catch (Exception e) { throw new RuntimeException(e); }
+	}
 	public static void archiveFiles(Collection<File> files, File archive) {
 		try {
 			TarOutputStream tar = new TarOutputStream(new FileOutputStream(archive));
@@ -362,7 +404,7 @@ public class MaeBackup {
 				String treehash = TreeHashGenerator.calculateTreeHash(file);
 				
 				InputStream is = new FileInputStream(file);
-				byte[] buffer = new byte[file.length()];
+				byte[] buffer = new byte[(int)file.length()];
 				int bytes = is.read(buffer);
 				if (bytes != file.length()) throw new RuntimeException("Only read "+bytes+" of "+file.length()+" byte file when preparing for upload.");
 				InputStream bais = new ByteArrayInputStream(buffer);
